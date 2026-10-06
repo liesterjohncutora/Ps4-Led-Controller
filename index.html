@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PS4 Controller LED Changer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            text-align: center;
+            padding: 20px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 20px;
+        }
+        button:hover { background-color: #0056b3; }
+        .controls {
+            margin-top: 30px;
+            display: none;
+        }
+        input[type="color"] {
+            width: 100px;
+            height: 100px;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            background: none;
+        }
+        #status { color: #aaa; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>PS4 Controller LED Controller</h1>
+    <p>Connect your DualShock 4 via USB OTG or Bluetooth, then click connect below.</p>
+    
+    <button id="connectBtn">Connect PS4 Controller</button>
+    <div id="status">Disconnected</div>
+
+    <div class="controls" id="controls">
+        <h3>Pick a Lightbar Color</h3>
+        <input type="color" id="colorPicker" value="#0000ff">
+    </div>
+
+    <script>
+        let device = null;
+        const connectBtn = document.getElementById('connectBtn');
+        const statusDiv = document.getElementById('status');
+        const controlsDiv = document.getElementById('controls');
+        const colorPicker = document.getElementById('colorPicker');
+
+        // PS4 Vendor ID and Product IDs (USB & Bluetooth)
+        const FILTERS = [
+            { vendorId: 0x054c, productId: 0x05c4 }, // DS4 v1
+            { vendorId: 0x054c, productId: 0x09cc }  // DS4 v2
+        ];
+
+        connectBtn.addEventListener('click', async () => {
+            try {
+                const devices = await navigator.hid.requestDevice({ filters: FILTERS });
+                if (devices.length === 0) return;
+                
+                device = devices[0];
+                await device.open();
+                
+                statusDiv.innerText = `Connected to: ${device.productName}`;
+                statusDiv.style.color = "#28a745";
+                controlsDiv.style.display = "block";
+                connectBtn.style.display = "none";
+
+                // Set initial color
+                updateLED(0, 0, 255); 
+            } catch (error) {
+                console.error(error);
+                statusDiv.innerText = "Connection failed. Ensure you are using Chrome/Edge.";
+                statusDiv.style.color = "#dc3545";
+            }
+        });
+
+        colorPicker.addEventListener('input', (e) => {
+            const hex = e.target.value;
+            const r = parseInt(hex.substr(1, 2), 16);
+            const g = parseInt(hex.substr(3, 2), 16);
+            const b = parseInt(hex.substr(5, 2), 16);
+            updateLED(r, g, b);
+        });
+
+        async function updateLED(r, g, b) {
+            if (!device || !device.opened) return;
+
+            // Report ID 0x11 is typically used for extended reports like LED control
+            const reportId = 0x11; 
+            const reportData = new Uint8Array(78);
+
+            reportData[0] = 0xC0; // Flag configuration
+            reportData[2] = 0x04; // Enable LED updates flag
+            
+            // LED RGB channels
+            reportData[6] = r; 
+            reportData[7] = g;
+            reportData[8] = b;
+
+            try {
+                await device.sendReport(reportId, reportData);
+            } catch (err) {
+                console.error("Failed to send LED report", err);
+            }
+        }
+    </script>
+</body>
+</html>
